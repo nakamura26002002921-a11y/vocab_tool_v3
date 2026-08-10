@@ -2,12 +2,14 @@ import argparse
 import subprocess
 import time
 
-
 API_KEYS = [
-    "gsk_xxxxxxxxxxxxxxxxx",
-    "gsk_yyyyyyyyyyyyyyyyy",
-    "gsk_zzzzzzzzzzzzzzzzz",
+    "gsk_xxx", 
+    "gsk_yyy", 
+    "gsk_zzz"
 ]
+
+def search(query, results, words):
+    return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-words", str(words)], capture_output=True, text=True, check=True).stdout
 
 
 def main():
@@ -20,50 +22,17 @@ def main():
     args = parser.parse_args()
 
     with open(args.words, encoding="utf-8") as f:
-        words = [line.strip() for line in f if line.strip()]
+        words = [x.strip() for x in f if x.strip()]
 
-    start = args.startidx - 1
-    end = min(args.endidx, len(words))
+    for i, word in enumerate(words[args.startidx - 1:args.endidx], args.startidx):
+        print(f"[{i}] {word}")
 
-    for i in range(start, end):
-        word = words[i]
-        api_key = API_KEYS[i % len(API_KEYS)]
+        results = "\n\n".join([search(f"{word} define", 5, 1000), search(f"{word} etymology", 10, 1000), search(f"{word} collocations", 10, 100), search(f"{word} reverso", 3, 1000)])
 
-        print(f"[{i + 1}/{len(words)}] {word}")
+        with open(args.output, "a", encoding="utf-8") as f:
+            subprocess.run(["python3", "vocab.py", "--word", word, "--api-key", API_KEYS[(i - 1) % len(API_KEYS)], "--scrape-result", results], stdout=f, check=True)
 
-        results = []
-
-        for query in [
-            f"{word} define",
-            f"{word} etymology",
-            f"{word} collocations",
-        ]:
-            result = subprocess.run(
-                ["python3", "search.py", "--word", query],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            results.append(result.stdout)
-
-        with open(args.output, "a", encoding="utf-8") as output:
-            result = subprocess.run(
-                [
-                    "python3",
-                    "vocab.py",
-                    "--word",
-                    word,
-                    "--api-key",
-                    api_key,
-                    "--scrape-result",
-                    "\n\n".join(results),
-                ],
-                stdout=output,
-                check=True,
-            )
-
-        if i < end - 1:
-            print(f"Waiting {args.interval} seconds...")
+        if i < args.endidx:
             time.sleep(args.interval)
 
 
