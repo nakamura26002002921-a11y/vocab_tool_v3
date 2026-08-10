@@ -9,8 +9,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--word", required=True)
     parser.add_argument("--api-key", required=True)
+    parser.add_argument("--prompt", required=True)
     parser.add_argument("--scrape-result", required=True)
-    parser.add_argument("--prompt", default="prompt.txt")
     args = parser.parse_args()
 
     with open(args.prompt, encoding="utf-8") as f:
@@ -30,12 +30,12 @@ def main():
 
     csv.writer(sys.stdout).writerow([
         data["word"],
-        data["meaning_ja"],
+        data["meaning"],
         data["part_of_speech"],
         data["etymology"],
         "; ".join(data["collocations"]),
-        data["example_en"],
-        data["example_ja"],
+        data["example"],
+        data["example_translated"],
     ])
 
 
