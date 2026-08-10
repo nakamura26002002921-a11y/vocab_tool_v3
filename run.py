@@ -27,7 +27,7 @@ def main():
     for i, word in enumerate(words[args.startidx - 1:args.endidx], args.startidx):
         print(f"[{i}] {word}")
 
-        results = "\n\n".join([search(f"{word} define", 5, 1000), search(f"{word} etymology", 10, 1000), search(f"{word} collocations", 10, 100), search(f"{word} reverso", 3, 1000)])
+        results = "\n\n".join([search(f"{word} define", 5, 200), search(f"{word} etymology", 10, 200), search(f"{word} collocations", 10, 100), search(f"{word} reverso", 3, 200)])
 
         with open(args.output, "a", encoding="utf-8") as f:
             subprocess.run(["python3", "vocab.py", "--word", word, "--api-key", API_KEYS[(i - 1) % len(API_KEYS)], "--scrape-result", results], stdout=f, check=True)
