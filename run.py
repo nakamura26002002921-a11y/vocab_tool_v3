@@ -1,4 +1,3 @@
-```python
 import argparse
 import subprocess
 import time
@@ -70,4 +69,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
