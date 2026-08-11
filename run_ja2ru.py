@@ -14,6 +14,7 @@ API_KEYS = [
 
 
 PROMPT = """
+
 # 目的
 
 ロシア語話者向けに、日本語の単語を学習するための辞書データを作成してください。
@@ -26,83 +27,103 @@ PROMPT = """
 
 {results}
 
-# 出力形式
-
-以下のJSON形式で出力してください。
-
-{{
-  "word": "{word}",
-  "reading": "ひらがなでの読み",
-  "meaning": "ロシア語での意味",
-  "part_of_speech": "英語の品詞名",
-  "etymology": "漢字の成り立ちや日本語としての語源・由来",
-  "collocations": [
-    "日本語のコロケーション（ロシア語訳）"
-  ],
-  "examples": [
-    {{
-      "example": "自然な日本語の例文",
-      "example_translated": "例文の自然なロシア語訳"
-    }},
-    {{
-      "example": "自然な日本語の例文",
-      "example_translated": "例文の自然なロシア語訳"
-    }}
-  ]
-}}
-
 # 制約条件
 
-Web検索結果を最優先する。確認できない情報は推測しない。類似語・同義語・別語の情報を混同しない。対象単語と直接関係しない情報を使用しない。
-「word」は入力値「{word}」をそのまま使用する。「word」には読みを付けない。表記を変更したり、漢字をひらがなに変換したりしない。
+Web検索結果を最優先し、確認できない情報は推測しない。類似語・同義語・別語の情報を混同せず、対象単語と直接関係する情報だけを使用する。
+「word」は入力値「{word}」をそのまま使用する。表記を変更しない。読みを付けない。
 「reading」は「word」の自然な日本語の読みを、ひらがなだけで記載する。カタカナ・漢字・ローマ字は使用しない。確認できない場合は「""」とする。
-「meaning」は日本語の意味をロシア語で記載する。代表的な意味を最大3つまで記載し、複数の意味は「;」で区切る。確認できない場合は「""」とする。
+「meaning」は日本語の代表的な意味をロシア語で最大3つ記載する。複数の意味は「;」で区切る。確認できない場合は「""」とする。
 「part_of_speech」は英語の品詞名で記載する。確認できない場合は「""」とする。
-「etymology」は漢字の成り立ち、日本語としての語源・由来などをロシア語で記載する。100文字以内を目安とする。Web検索結果で確認できない情報は推測しない。漢字の成り立ちや語源に諸説ある場合は、確認できた説だけを記載する。確認できない場合は「""」とする。「etymology」は必ずロシア語で記載する。
-「collocations」はWeb検索で確認できた自然な日本語のコロケーションを最大3つ記載する。「日本語（ロシア語訳）」の形式とする。日本語部分に漢字が含まれる場合は、すべての漢字の直後に「（ひらがな）」形式で読みを付ける。例えば「家（いえ）を建（た）てる（построить дом）」のように記載する。3つ未満の場合は、確認できたものだけを記載する。存在しないコロケーションを推測して補完しない。確認できない場合は「[]」とする。
-「examples」は必ず2つ作成する。「{word}」またはその自然な活用形を含む、日本語として自然な例文を作成する。可能であれば異なる用法の例文を2つ作成する。実際の日本語として不自然な例文を作成しない。日本語の例文に漢字が含まれる場合は、すべての漢字の直後に「（ひらがな）」形式で読みを付ける。例えば「仕事（しごと）が終（お）わったら家（いえ）に帰（かえ）ります。」のように記載する。
-「example_translated」は対応する日本語例文の自然で正確なロシア語訳とする。意味を省略したり、不自然な直訳にしたりしない。「example_translated」はロシア語で記載し、ロシア語の文章には日本語のふりがなを付けない。
-日本語を含む「collocations」「examples」などのフィールドでは、漢字の読みを必ずひらがなで付ける。送り仮名には読みを付けない。すでにひらがな・カタカナ・ローマ字で書かれている部分には読みを付けない。「word」だけは例外として、入力値をそのまま使用する。「reading」は読みだけをひらがなで記載する。
-Web検索結果で確認できない情報を一般知識だけで補完しない。対象単語と別の単語についての情報を混同しない。特に語源や漢字の成り立ちは慎重に扱い、確証がない場合は推測しない。情報が確認できない場合は、該当フィールドを「""」または「[]」とする。
-指定されたJSON形式を厳密に守る。JSON以外の文章を出力しない。Markdownコードブロックを使用しない。JSONのキー名を変更しない。
-
-
-# 出力例
-
-入力単語:
-
-家
-
-出力:
-
-{{
-  "word": "家",
-  "reading": "いえ",
-  "meaning": "дом; семья",
-  "part_of_speech": "noun",
-  "etymology": "Иероглиф 家 состоит из 宀 («крыша») и 豕 («свинья») и первоначально изображал свинью под крышей.",
-  "collocations": [
-    "家（いえ）を建（た）てる（построить дом）",
-    "家（いえ）に帰（かえ）る（вернуться домой）",
-    "家族（かぞく）と暮（く）らす（жить с семьёй）"
-  ],
-  "examples": [
-    {{
-      "example": "仕事（しごと）が終（お）わったら家（いえ）に帰（かえ）ります。",
-      "example_translated": "После работы я возвращаюсь домой."
-    }},
-    {{
-      "example": "彼（かれ）は新（あたら）しい家（いえ）を建（た）てました。",
-      "example_translated": "Он построил новый дом."
-    }}
-  ]
-}}
+「etymology」は漢字の成り立ち、日本語としての語源・由来などをロシア語で記載する。100文字以内を目安とする。Web検索結果で確認できない情報は推測しない。諸説ある場合は確認できた説だけを記載する。確認できない場合は「""」とする。
+「collocations」はWeb検索で確認できた自然な日本語のコロケーションを最大3つ記載する。「日本語（ロシア語訳）」の形式とする。日本語部分の漢字には、すべて「漢字（ひらがな）」形式で読みを付ける。例：「家（いえ）を建（た）てる（построить дом）」。確認できたものが3つ未満の場合は、確認できたものだけを記載する。推測で補完しない。確認できない場合は「[]」とする。
+「examples」は必ず2つ作成する。「{word}」またはその自然な活用形を含む、自然で実際に使われる日本語の例文とする。可能であれば異なる用法を使用する。例文中のすべての漢字に「漢字（ひらがな）」形式で読みを付ける。例：「仕事（しごと）が終（お）わったら家（いえ）に帰（かえ）ります。」。
+「example_translated」は対応する日本語例文の自然で正確なロシア語訳とする。ロシア語で記載し、日本語のふりがなは付けない。
+日本語を含むフィールドでは、原則としてすべての漢字にひらがなの読みを付ける。ただし「word」は入力値をそのまま使用する。「reading」は読みだけをひらがなで記載する。
+Web検索結果で確認できない情報を一般知識だけで補完しない。特に語源・漢字の成り立ちは慎重に扱い、確証がない場合は推測しない。確認できない場合は、該当フィールドを「""」または「[]」とする。
+JSON Schemaで指定された構造を厳密に守る。JSON以外の文章を出力しない。Markdownコードブロックを使用しない。指定されたキー名を変更しない。
 """
 
 
 def call_vocab(prompt, api_key):
     client = Groq(api_key=api_key)
-    response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=1500)
+
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0,
+        max_tokens=2000,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "japanese_vocab",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "word": {
+                            "type": "string"
+                        },
+                        "reading": {
+                            "type": "string"
+                        },
+                        "meaning": {
+                            "type": "string"
+                        },
+                        "part_of_speech": {
+                            "type": "string"
+                        },
+                        "etymology": {
+                            "type": "string"
+                        },
+                        "collocations": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 3
+                        },
+                        "examples": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "example": {
+                                        "type": "string"
+                                    },
+                                    "example_translated": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "example",
+                                    "example_translated"
+                                ],
+                                "additionalProperties": False
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    },
+                    "required": [
+                        "word",
+                        "reading",
+                        "meaning",
+                        "part_of_speech",
+                        "etymology",
+                        "collocations",
+                        "examples"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        }
+    )
+
     return json.loads(response.choices[0].message.content)
 
 def search(query, results, max_chars):
@@ -127,7 +148,7 @@ def main():
         try:
             results = "\n\n".join([
                 search(f"{word} 意味", 2, 600),
-                search(f"{word} 由来", 2, 600)
+                search(f"{word} 由来", 2, 1000)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
