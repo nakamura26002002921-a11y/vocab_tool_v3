@@ -112,9 +112,8 @@ def call_vocab(prompt, api_key):
     response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=1500)
     return json.loads(response.choices[0].message.content)
 
-def search(query, results, words):
-    import subprocess
-    return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-words", str(words)], capture_output=True, text=True, check=True).stdout
+def search(query, results, max_chars):
+    return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-chars", str(max_chars)], capture_output=True, text=True, check=True).stdout
 
 def main():
     parser = argparse.ArgumentParser()
@@ -134,15 +133,25 @@ def main():
 
         try:
             results = "\n\n".join([
-                search(f"{word} значение", 5, 300),
-                search(f"{word} этимология", 3, 200)
+                search(f"{word} значение", 5, 3000),
+                search(f"{word} этимология", 3, 3000)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
             examples = data.get("examples", [])
 
             with open(args.output, "a", encoding="utf-8", newline="") as f:
-                csv.writer(f).writerow([data.get("word", word), data.get("meaning", ""), data.get("part_of_speech", ""), data.get("etymology", ""), "; ".join(collocations), examples[0].get("example", "") if len(examples) > 0 else "", examples[0].get("example_translated", "") if len(examples) > 0 else "", examples[1].get("example", "") if len(examples) > 1 else "", examples[1].get("example_translated", "") if len(examples) > 1 else ""])
+                csv.writer(f).writerow([
+                    data.get("word", word),
+                    data.get("meaning", ""),
+                    data.get("part_of_speech", ""),
+                    data.get("etymology", ""),
+                    "; ".join(collocations),
+                    examples[0].get("example", "") if len(examples) > 0 else "",
+                    examples[0].get("example_translated", "") if len(examples) > 0 else "",
+                    examples[1].get("example", "") if len(examples) > 1 else "",
+                    examples[1].get("example_translated", "") if len(examples) > 1 else ""
+                ])
 
             print(f"[{i}] OK")
         except Exception as e:
