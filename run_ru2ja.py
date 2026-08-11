@@ -106,7 +106,6 @@ PROMPT = """
   ]
 }}
 """
-"""
 
 def search(query, results, words):
     return subprocess.run(
