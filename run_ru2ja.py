@@ -167,10 +167,8 @@ def main():
 
         try:
             results = "\n\n".join([
-                search(f"{word} значение", 5, 100),
-                search(f"{word} этимология", 10, 200),
-                search(f"{word} коллокации", 10, 100),
-                search(f"{word} примеры предложений", 3, 1000),
+                search(f"{word} значение", 5, 300),
+                search(f"{word} этимология", 3, 200),
             ])
 
             data = call_vocab(word, results, api_key)
