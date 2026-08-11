@@ -1,7 +1,6 @@
 import argparse
 import csv
 import json
-import os
 import subprocess
 import sys
 import time
@@ -12,62 +11,66 @@ API_KEYS = [
     "gsk_zzz",
 ]
 
-
 PROMPT = """
-Ты помогаешь носителям японского языка изучать русский язык.
+ロシア語話者向けの日本語辞書データを作成してください。
 
-Целевое японское слово: «{word}»
+対象単語: 「{word}」
 
-Ниже приведены результаты веб-поиска. Используй их для составления
-словарной статьи о слове «{word}».
+以下のWeb検索結果を参考にしてください。
 
-【Результаты веб-поиска】
+【検索結果】
 {results}
 
-Выведи результат строго в следующем формате JSON:
+以下のJSONのみを出力してください。
 
 {{
-  "word": "{word}",
-  "reading": "чтение японского слова",
-  "meaning": "значение слова на русском языке",
-  "part_of_speech": "часть речи на английском языке",
-  "etymology": "краткое происхождение слова",
-  "collocations": [
-    "типичное словосочетание 1",
-    "типичное словосочетание 2",
-    "типичное словосочетание 3"
-  ],
-  "examples": [
-    {{
-      "example": "естественное предложение на русском языке",
-      "example_translated": "перевод предложения на японский язык"
-    }},
-    {{
-      "example": "естественное предложение на русском языке",
-      "example_translated": "перевод предложения на японский язык"
-    }}
-  ]
+"word": "{word}",
+"meaning": "ロシア語での意味。多義語の場合は代表的な意味を最大3つまで「;」で区切る。確認できない場合は空文字。",
+"part_of_speech": "品詞を英語で記載。確認できない場合は空文字。",
+"etymology": "語源・由来を50文字以内で簡潔に記載。確認できない場合は空文字。",
+"collocations": ["確認できた代表的なコロケーションを最大3つ。3つ未満なら確認できたものだけ。存在しない場合は空配列。"],
+"examples": [
+{{
+"example": "対象単語「{word}」または自然な活用形を含む自然な日本語の例文",
+"example_translated": "例文の自然なロシア語訳"
+}},
+{{
+"example": "対象単語「{word}」または自然な活用形を含む自然な日本語の例文",
+"example_translated": "例文の自然なロシア語訳"
+}}
+]
 }}
 
-Правила:
+【出力例】
 
-- В первую очередь используй информацию из результатов веб-поиска.
-- Не выдумывай информацию, которой нет в результатах поиска.
-- Если необходимой информации нет, оставляй соответствующее поле пустым.
-- Поле "word" должно содержать исходное японское слово «{word}».
-- "reading" должно содержать чтение японского слова хираганой.
-- "meaning" должно содержать значение слова на русском языке.
-- "part_of_speech" указывай только на английском языке.
-- "etymology" описывай кратко.
-- Указывай не более 3 типичных коллокаций.
-- Если найдено меньше 3 подходящих коллокаций, указывай только найденные.
-- Если подходящих коллокаций нет, используй пустой массив [].
-- Не придумывай коллокации только для того, чтобы заполнить три позиции.
-- Должно быть ровно 2 примера.
-- Примеры должны быть естественными и содержать соответствующее русское
-  слово или его естественную грамматическую форму.
-- "example_translated" должен содержать перевод примера на японский язык.
-- Выводи только JSON без пояснений и без markdown-разметки.
+入力単語:
+家
+
+出力:
+{{
+"word": "家",
+"meaning": "дом; семья",
+"part_of_speech": "noun",
+"etymology": "古代日本語に由来する語",
+"collocations": ["家を建てる", "家に帰る", "家族と暮らす"],
+"examples": [
+{{
+"example": "仕事が終わったら家に帰ります。",
+"example_translated": "После работы я возвращаюсь домой."
+}},
+{{
+"example": "彼は新しい家を建てました。",
+"example_translated": "Он построил новый дом."
+}}
+]
+}}
+
+ルール:
+
+- Web検索結果を最優先し、確認できない情報は推測しない。
+- 類似語・同義語・別の単語の情報を混同しない。
+- "word" は入力された「{word}」をそのまま使用する。
+- JSON以外は出力しない。
 """
 
 def search(query, results, words):
@@ -87,7 +90,6 @@ def search(query, results, words):
         check=True,
     ).stdout
 
-
 def call_vocab(word, results, api_key):
     prompt = PROMPT.format(word=word, results=results)
 
@@ -106,7 +108,6 @@ def call_vocab(word, results, api_key):
     )
 
     return json.loads(result.stdout)
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -128,14 +129,14 @@ def main():
 
         api_key = API_KEYS[(i - 1) % len(API_KEYS)]
 
-        results = "\n\n".join([
-            search(f"{word} 意味", 5, 100),
-            search(f"{word} 語源", 10, 200),
-            search(f"{word} コロケーション", 10, 100),
-            search(f"{word} 例文", 3, 1000),
-        ])
-
         try:
+            results = "\n\n".join([
+                search(f"{word} 意味", 5, 100),
+                search(f"{word} 語源", 10, 200),
+                search(f"{word} コロケーション", 10, 100),
+                search(f"{word} 例文", 3, 1000),
+            ])
+
             data = call_vocab(word, results, api_key)
 
             collocations = data.get("collocations", [])[:3]
@@ -149,7 +150,6 @@ def main():
             ) as f:
                 csv.writer(f).writerow([
                     data.get("word", word),
-                    data.get("reading", ""),
                     data.get("meaning", ""),
                     data.get("part_of_speech", ""),
                     data.get("etymology", ""),
@@ -160,12 +160,13 @@ def main():
                     examples[1].get("example_translated", "") if len(examples) > 1 else "",
                 ])
 
+            print(f"[{i}] OK")
+
         except Exception as e:
             print(f"[{i}] ERROR: {e}", file=sys.stderr)
 
         if i < args.endidx:
             time.sleep(args.interval)
-
 
 if __name__ == "__main__":
     main()
