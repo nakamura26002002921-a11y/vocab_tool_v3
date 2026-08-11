@@ -1,0 +1,4 @@
+groq
+requests
+beautifulsoup4
+ddgs
