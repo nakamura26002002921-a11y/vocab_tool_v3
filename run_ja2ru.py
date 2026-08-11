@@ -1,13 +1,10 @@
 import argparse
 import csv
 import json
+import os
 import subprocess
 import sys
 import time
-from datetime import datetime
-
-from groq import Groq
-from groq import APIError, APIConnectionError, APITimeoutError, RateLimitError
 
 API_KEYS = [
     "gsk_xxx",
@@ -15,38 +12,26 @@ API_KEYS = [
     "gsk_zzz",
 ]
 
+
 PROMPT = """
-Ты помогаешь носителям русского языка изучать японский язык.
+Ты помогаешь носителям японского языка изучать русский язык.
 
-Целевое слово: «{word}»
+Целевое японское слово: «{word}»
 
-Ниже приведены результаты веб-поиска по этому слову. Используй их, чтобы
-составить словарную статью СТРОГО про слово «{word}» и никакое другое.
+Ниже приведены результаты веб-поиска. Используй их для составления
+словарной статьи о слове «{word}».
 
 【Результаты веб-поиска】
 {results}
 
-ВАЖНО — во избежание путаницы со словами:
-- Составляй статью ТОЛЬКО для слова «{word}». Если в результатах поиска
-  встречаются другие японские слова (омонимы, похожие слова, другие
-  значения кандзи), НЕ используй их значение, чтения или примеры.
-- Если результаты поиска не относятся к слову «{word}» или релевантной
-  информации недостаточно, не выдумывай данные — используй только то,
-  что действительно подтверждено результатами поиска, и оставляй поле
-  пустым ("") там, где данных нет, а не заменяй его похожим словом.
-- Поле "word" должно содержать ТОЧНО «{word}», без изменений.
-- Все примеры предложений должны реально содержать слово «{word}»
-  (а не однокоренное или похожее слово).
-
-Выведи результат СТРОГО в следующем формате JSON (все значения на
-русском языке, кроме поля "word" и текста примеров на японском):
+Выведи результат строго в следующем формате JSON:
 
 {{
   "word": "{word}",
-  "reading": "чтение хираганой",
-  "meaning": "значение на русском",
-  "part_of_speech": "часть речи (на английском)",
-  "etymology": "происхождение слова (кратко)",
+  "reading": "чтение японского слова",
+  "meaning": "значение слова на русском языке",
+  "part_of_speech": "часть речи на английском языке",
+  "etymology": "краткое происхождение слова",
   "collocations": [
     "типичное словосочетание 1",
     "типичное словосочетание 2",
@@ -54,151 +39,73 @@ PROMPT = """
   ],
   "examples": [
     {{
-      "example": "естественное предложение на японском 1",
-      "example_translated": "перевод примера 1 на русский"
+      "example": "естественное предложение на русском языке",
+      "example_translated": "перевод предложения на японский язык"
     }},
     {{
-      "example": "естественное предложение на японском 2",
-      "example_translated": "перевод примера 2 на русский"
+      "example": "естественное предложение на русском языке",
+      "example_translated": "перевод предложения на японский язык"
     }}
   ]
 }}
 
 Правила:
-- Приоритет отдавай информации из результатов веб-поиска
-- Не додумывай информацию, если её нет в результатах поиска
-- Происхождение слова описывай кратко
-- Часть речи указывай на английском
-- Словосочетаний должно быть ровно 3
-- Примеров должно быть ровно 2, с разным употреблением слова, оба
-  должны реально содержать слово «{word}»
-- Поле "reading" обязательно, если в слове есть кандзи; если слово
-  состоит только из хираганы/катаканы — укажи само слово
-- Выводи ТОЛЬКО JSON, без пояснений и без markdown-разметки
+
+- В первую очередь используй информацию из результатов веб-поиска.
+- Не выдумывай информацию, которой нет в результатах поиска.
+- Если необходимой информации нет, оставляй соответствующее поле пустым.
+- Поле "word" должно содержать исходное японское слово «{word}».
+- "reading" должно содержать чтение японского слова хираганой.
+- "meaning" должно содержать значение слова на русском языке.
+- "part_of_speech" указывай только на английском языке.
+- "etymology" описывай кратко.
+- Указывай не более 3 типичных коллокаций.
+- Если найдено меньше 3 подходящих коллокаций, указывай только найденные.
+- Если подходящих коллокаций нет, используй пустой массив [].
+- Не придумывай коллокации только для того, чтобы заполнить три позиции.
+- Должно быть ровно 2 примера.
+- Примеры должны быть естественными и содержать соответствующее русское
+  слово или его естественную грамматическую форму.
+- "example_translated" должен содержать перевод примера на японский язык.
+- Выводи только JSON без пояснений и без markdown-разметки.
 """
 
-REQUIRED_KEYS = [
-    "word", "reading", "meaning", "part_of_speech", "etymology",
-    "collocations", "examples",
-]
+def search(query, results, words):
+    return subprocess.run(
+        [
+            "python3",
+            "search.py",
+            "--word",
+            query,
+            "--max-results",
+            str(results),
+            "--max-words",
+            str(words),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
 
 
-def log(msg):
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(f"[{ts}] {msg}", file=sys.stderr)
-
-
-def write_failure_log(log_path, idx, word, reason):
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()}\t{idx}\t{word}\t{reason}\n")
-
-
-def search(query, max_results, max_words, retries=2, backoff=3):
-    """search.py をサブプロセスで呼び出す。失敗時は指定回数までリトライし、
-    それでもダメなら例外を送出する(呼び出し元で単語ごとスキップ判定するため)。
-    """
-    last_error = None
-    for attempt in range(1, retries + 2):
-        try:
-            result = subprocess.run(
-                [
-                    "python3",
-                    "search.py",
-                    "--word",
-                    query,
-                    "--max-results",
-                    str(max_results),
-                    "--max-words",
-                    str(max_words),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=120,
-                check=True,
-            )
-            return result.stdout
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            last_error = e
-            if attempt <= retries:
-                wait = backoff * attempt
-                log(f"  [search retry {attempt}/{retries}] query={query!r}: {e} -> {wait}s待機")
-                time.sleep(wait)
-                continue
-            raise RuntimeError(f"search.py failed for query={query!r}: {last_error}") from last_error
-
-
-def call_groq(client, prompt, retries=3, backoff=5):
-    last_error = None
-    for attempt in range(1, retries + 2):
-        try:
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
-                max_tokens=500,
-                response_format={"type": "json_object"},
-            )
-            return response.choices[0].message.content
-        except RateLimitError as e:
-            last_error = e
-            wait = backoff * attempt * 2  # レートリミットは長めに待つ
-        except (APIConnectionError, APITimeoutError) as e:
-            last_error = e
-            wait = backoff * attempt
-        except APIError as e:
-            last_error = e
-            wait = backoff * attempt
-
-        if attempt <= retries:
-            log(f"  [groq retry {attempt}/{retries}] {last_error} -> {wait}s待機")
-            time.sleep(wait)
-        else:
-            raise RuntimeError(f"Groq API call failed: {last_error}") from last_error
-
-
-def parse_and_validate(raw_json, expected_word):
-    data = json.loads(raw_json)  # json.JSONDecodeError は呼び出し元でキャッチ
-    missing = [k for k in REQUIRED_KEYS if k not in data]
-    if missing:
-        raise ValueError(f"応答JSONに必須キーが不足: {missing}")
-    if data["word"] != expected_word:
-        raise ValueError(
-            f"単語の不一致を検出(ハルシネーションの疑い): "
-            f"期待={expected_word!r}, 応答={data['word']!r}"
-        )
-    if not isinstance(data["collocations"], list):
-        raise ValueError("collocationsがリストではありません")
-    if not isinstance(data["examples"], list) or len(data["examples"]) != 2:
-        raise ValueError("examplesは2件のリストである必要があります")
-    for ex in data["examples"]:
-        if "example" not in ex or "example_translated" not in ex:
-            raise ValueError("examplesの各要素にexample/example_translatedが必要です")
-        if expected_word not in ex["example"]:
-            raise ValueError(
-                f"例文に対象単語が含まれていません(ハルシネーションの疑い): "
-                f"word={expected_word!r}, example={ex['example']!r}"
-            )
-    return data
-
-
-def process_word(client, word):
-    results = "\n\n".join([
-        search(f"{word} 意味", 5, 100),
-        search(f"{word} 語源", 10, 200),
-        search(f"{word} コロケーション", 10, 100),
-        search(f"{word} 例文", 3, 1000),
-    ])
-
+def call_vocab(word, results, api_key):
     prompt = PROMPT.format(word=word, results=results)
 
-    raw = call_groq(client, prompt)
+    result = subprocess.run(
+        [
+            "python3",
+            "vocab.py",
+            "--prompt",
+            prompt,
+            "--api-key",
+            api_key,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-    try:
-        data = parse_and_validate(raw, word)
-    except (json.JSONDecodeError, ValueError) as e:
-        raise RuntimeError(f"Groq応答のパースに失敗: {e} / raw={raw[:200]!r}") from e
-
-    return data
+    return json.loads(result.stdout)
 
 
 def main():
@@ -208,69 +115,56 @@ def main():
     parser.add_argument("--startidx", type=int, required=True)
     parser.add_argument("--endidx", type=int, required=True)
     parser.add_argument("--interval", type=int, default=30)
-    parser.add_argument(
-        "--fail-log", default="failed_words.tsv",
-        help="スキップした単語を記録するログファイル",
-    )
     args = parser.parse_args()
 
     with open(args.words, encoding="utf-8") as f:
         words = [x.strip() for x in f if x.strip()]
 
-    total = args.endidx - args.startidx + 1
-    ok_count = 0
-    fail_count = 0
-
     for i, word in enumerate(
         words[args.startidx - 1:args.endidx],
         args.startidx,
     ):
-        log(f"[{i}] {word} を処理中...")
+        print(f"[{i}] {word}")
 
-        client = Groq(api_key=API_KEYS[(i - 1) % len(API_KEYS)])
+        api_key = API_KEYS[(i - 1) % len(API_KEYS)]
 
-        try:
-            data = process_word(client, word)
-        except Exception as e:
-            fail_count += 1
-            log(f"  [FAIL] {word}: {e} -> スキップして次の単語へ")
-            write_failure_log(args.fail_log, i, word, str(e))
-            if i < args.endidx:
-                time.sleep(args.interval)
-            continue
+        results = "\n\n".join([
+            search(f"{word} 意味", 5, 100),
+            search(f"{word} 語源", 10, 200),
+            search(f"{word} コロケーション", 10, 100),
+            search(f"{word} 例文", 3, 1000),
+        ])
 
         try:
-            with open(args.output, "a", encoding="utf-8", newline="") as f:
-                ex1, ex2 = data["examples"]
+            data = call_vocab(word, results, api_key)
+
+            collocations = data.get("collocations", [])[:3]
+            examples = data.get("examples", [])
+
+            with open(
+                args.output,
+                "a",
+                encoding="utf-8",
+                newline="",
+            ) as f:
                 csv.writer(f).writerow([
-                    data["word"],
-                    data["reading"],
-                    data["meaning"],
-                    data["part_of_speech"],
-                    data["etymology"],
-                    "; ".join(data["collocations"]),
-                    ex1["example"],
-                    ex1["example_translated"],
-                    ex2["example"],
-                    ex2["example_translated"],
+                    data.get("word", word),
+                    data.get("reading", ""),
+                    data.get("meaning", ""),
+                    data.get("part_of_speech", ""),
+                    data.get("etymology", ""),
+                    "; ".join(collocations),
+                    examples[0].get("example", "") if len(examples) > 0 else "",
+                    examples[0].get("example_translated", "") if len(examples) > 0 else "",
+                    examples[1].get("example", "") if len(examples) > 1 else "",
+                    examples[1].get("example_translated", "") if len(examples) > 1 else "",
                 ])
-        except OSError as e:
-            fail_count += 1
-            log(f"  [FAIL] {word}: CSV書き込み失敗: {e}")
-            write_failure_log(args.fail_log, i, word, f"csv write error: {e}")
-            if i < args.endidx:
-                time.sleep(args.interval)
-            continue
 
-        ok_count += 1
-        log(f"  [OK] {word}")
+        except Exception as e:
+            print(f"[{i}] ERROR: {e}", file=sys.stderr)
 
         if i < args.endidx:
             time.sleep(args.interval)
-
-    log(f"完了: 成功 {ok_count}/{total}, 失敗 {fail_count}/{total}")
-    if fail_count:
-        log(f"失敗した単語は {args.fail_log} を参照してください")
 
 
 if __name__ == "__main__":
