@@ -137,10 +137,10 @@ def main():
 
         try:
             results = "\n\n".join([
-                search(f"{word} 意味", 3, 800),
-                search(f"{word} 由来", 3, 800),
-                search(f"{word} コロケーション", 5, 1000),
-                search(f"{word} 例文", 5, 1000)
+                search(f"{word} 意味", 2, 400),
+                search(f"{word} 由来", 2, 400),
+                search(f"{word} コロケーション", 3, 500),
+                search(f"{word} 例文", 3, 500)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
