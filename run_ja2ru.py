@@ -136,9 +136,11 @@ def main():
         api_key = API_KEYS[(i - 1) % len(API_KEYS)]
 
         try:
-            results = "\n\n".join([
-                search(f"{word} 意味", 2, 600),
-                search(f"{word} 由来", 2, 1000)
+            results = "\n\n".joinresults = "\n\n".join([
+                search(f"{word} 意味", 3, 800),
+                search(f"{word} 由来", 3, 800),
+                search(f"{word} コロケーション", 5, 1000),
+                search(f"{word} 例文", 5, 1000)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
