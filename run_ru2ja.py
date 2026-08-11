@@ -107,43 +107,14 @@ PROMPT = """
 }}
 """
 
+def call_vocab(prompt, api_key):
+    client = Groq(api_key=api_key)
+    response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=1500)
+    return json.loads(response.choices[0].message.content)
+
 def search(query, results, words):
-    return subprocess.run(
-        [
-            "python3",
-            "search.py",
-            "--word",
-            query,
-            "--max-results",
-            str(results),
-            "--max-words",
-            str(words),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-
-
-def call_vocab(word, results, api_key):
-    prompt = PROMPT.format(word=word, results=results)
-
-    result = subprocess.run(
-        [
-            "python3",
-            "vocab.py",
-            "--prompt",
-            prompt,
-            "--api-key",
-            api_key,
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return json.loads(result.stdout)
-
+    import subprocess
+    return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-words", str(words)], capture_output=True, text=True, check=True).stdout
 
 def main():
     parser = argparse.ArgumentParser()
@@ -157,12 +128,8 @@ def main():
     with open(args.words, encoding="utf-8") as f:
         words = [x.strip() for x in f if x.strip()]
 
-    for i, word in enumerate(
-        words[args.startidx - 1:args.endidx],
-        args.startidx,
-    ):
+    for i, word in enumerate(words[args.startidx - 1:args.endidx], args.startidx):
         print(f"[{i}] {word}")
-
         api_key = API_KEYS[(i - 1) % len(API_KEYS)]
 
         try:
@@ -170,38 +137,19 @@ def main():
                 search(f"{word} значение", 5, 300),
                 search(f"{word} этимология", 3, 200)
             ])
-
-            data = call_vocab(word, results, api_key)
-
+            data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
             examples = data.get("examples", [])
 
-            with open(
-                args.output,
-                "a",
-                encoding="utf-8",
-                newline="",
-            ) as f:
-                csv.writer(f).writerow([
-                    data.get("word", word),
-                    data.get("meaning", ""),
-                    data.get("part_of_speech", ""),
-                    data.get("etymology", ""),
-                    "; ".join(collocations),
-                    examples[0].get("example", "") if len(examples) > 0 else "",
-                    examples[0].get("example_translated", "") if len(examples) > 0 else "",
-                    examples[1].get("example", "") if len(examples) > 1 else "",
-                    examples[1].get("example_translated", "") if len(examples) > 1 else "",
-                ])
+            with open(args.output, "a", encoding="utf-8", newline="") as f:
+                csv.writer(f).writerow([data.get("word", word), data.get("meaning", ""), data.get("part_of_speech", ""), data.get("etymology", ""), "; ".join(collocations), examples[0].get("example", "") if len(examples) > 0 else "", examples[0].get("example_translated", "") if len(examples) > 0 else "", examples[1].get("example", "") if len(examples) > 1 else "", examples[1].get("example_translated", "") if len(examples) > 1 else ""])
 
             print(f"[{i}] OK")
-
         except Exception as e:
             print(f"[{i}] ERROR: {e}", file=sys.stderr)
 
         if i < args.endidx:
             time.sleep(args.interval)
-
 
 if __name__ == "__main__":
     main()
