@@ -89,8 +89,11 @@ def call_vocab(prompt, api_key):
     response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=1500)
     return json.loads(response.choices[0].message.content)
 
-def search(query, results, max_chars):
-    return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-chars", str(max_chars)], capture_output=True, text=True, check=True).stdout
+def search(query, results, max_chars, timeout=10, unicode_start=None, unicode_end=None):
+    cmd = ["python3", "search.py", "--word", query, "--max-results", str(results), "--max-chars", str(max_chars), "--timeout", str(timeout)]
+    if unicode_start is not None: cmd += ["--unicode-start", hex(unicode_start)]
+    if unicode_end is not None: cmd += ["--unicode-end", hex(unicode_end)]
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
 
 def main():
     parser = argparse.ArgumentParser()
