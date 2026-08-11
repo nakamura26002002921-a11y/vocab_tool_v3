@@ -110,7 +110,7 @@ def main():
 
         try:
             results = "\n\n".join([
-                search(f"{word} значение", 5, 3000),
+                search(f"{word} значение", 3, 3000),
                 search(f"{word} этимология", 3, 3000)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
