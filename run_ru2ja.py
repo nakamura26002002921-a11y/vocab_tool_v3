@@ -110,8 +110,8 @@ def main():
 
         try:
             results = "\n\n".join([
-                search(f"{word} значение", 3, 3000),
-                search(f"{word} этимология", 3, 3000)
+                search(f"{word} значение", 3, 3000, 10, 0x0400, 0x04FF),
+                search(f"{word} этимология", 3, 3000, 10, 0x0400, 0x04FF)
             ])
             data = call_vocab(PROMPT.format(word=word, results=results), api_key)
             collocations = data.get("collocations", [])[:3]
