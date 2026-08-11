@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import time
+from groq import Groq
 
 API_KEYS = [
     "gsk_xxx",
