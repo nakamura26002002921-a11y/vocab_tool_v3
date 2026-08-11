@@ -136,7 +136,7 @@ def main():
         api_key = API_KEYS[(i - 1) % len(API_KEYS)]
 
         try:
-            results = "\n\n".joinresults = "\n\n".join([
+            results = "\n\n".join([
                 search(f"{word} 意味", 3, 800),
                 search(f"{word} 由来", 3, 800),
                 search(f"{word} コロケーション", 5, 1000),
