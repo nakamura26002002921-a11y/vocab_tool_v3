@@ -12,7 +12,7 @@ response = client.chat.completions.create(
     model="openai/gpt-oss-120b",
     messages=[{"role": "user", "content": args.prompt}],
     temperature=0,
-    max_tokens=500,
+    max_tokens=1500,
 )
 
 print(response.choices[0].message.content)
