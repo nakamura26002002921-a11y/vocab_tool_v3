@@ -35,8 +35,16 @@ PROMPT = """
     "代表的なコロケーション2",
     "代表的なコロケーション3"
   ],
-  "example": "自然なロシア語の例文",
-  "example_translated": "例文の日本語訳"
+  "examples": [
+    {{
+      "example": "自然なロシア語の例文1",
+      "example_translated": "例文1の日本語訳"
+    }},
+    {{
+      "example": "自然なロシア語の例文2",
+      "example_translated": "例文2の日本語訳"
+    }}
+  ]
 }}
 
 ルール:
@@ -45,13 +53,13 @@ PROMPT = """
 - 語源は簡潔にする
 - 品詞は英語で記載する
 - コロケーションは3つ
-- 例文は自然なロシア語にする
+- 例文は2つ、それぞれ用法が異なる自然なロシア語にする
 - JSONのみ出力する
 """
 
 REQUIRED_KEYS = [
     "word", "meaning", "part_of_speech", "etymology",
-    "collocations", "example", "example_translated",
+    "collocations", "examples",
 ]
 
 
@@ -141,6 +149,11 @@ def parse_and_validate(raw_json):
         raise ValueError(f"応答JSONに必須キーが不足: {missing}")
     if not isinstance(data["collocations"], list):
         raise ValueError("collocationsがリストではありません")
+    if not isinstance(data["examples"], list) or len(data["examples"]) != 2:
+        raise ValueError("examplesは2件のリストである必要があります")
+    for ex in data["examples"]:
+        if "example" not in ex or "example_translated" not in ex:
+            raise ValueError("examplesの各要素にexample/example_translatedが必要です")
     return data
 
 
@@ -207,14 +220,17 @@ def main():
 
         try:
             with open(args.output, "a", encoding="utf-8", newline="") as f:
+                ex1, ex2 = data["examples"]
                 csv.writer(f).writerow([
                     data["word"],
                     data["meaning"],
                     data["part_of_speech"],
                     data["etymology"],
                     "; ".join(data["collocations"]),
-                    data["example"],
-                    data["example_translated"],
+                    ex1["example"],
+                    ex1["example_translated"],
+                    ex2["example"],
+                    ex2["example_translated"],
                 ])
         except OSError as e:
             # 出力できなければスキップ扱いにはできない(データはあるのに消えるため)
