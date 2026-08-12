@@ -15,7 +15,7 @@ API_KEYS = [
 PROMPT = """
 # 目的
 
-日本語話者向けに、ロシア語の単語を学習するための辞書データを作成してください。
+日本語話者がロシア語の単語を正確に学習できる辞書データを作成する。Web検索結果を根拠として、意味・語源・コロケーション・例文を正確に整理する。
 
 # 対象単語
 
@@ -25,68 +25,67 @@ PROMPT = """
 
 {results}
 
-# 出力形式
-
-以下のJSON形式で出力してください。
-
-{{
-  "word": "{word}",
-  "meaning": "日本語での意味",
-  "part_of_speech": "英語の品詞名",
-  "etymology": "ロシア語としての語源・由来",
-  "collocations": [
-    "ロシア語のコロケーション（日本語訳）"
-  ],
-  "examples": [
-    {{
-      "example": "自然なロシア語の例文",
-      "example_translated": "例文の自然な日本語訳"
-    }},
-    {{
-      "example": "自然なロシア語の例文",
-      "example_translated": "例文の自然な日本語訳"
-    }}
-  ]
-}}
-
 # 制約条件
 
-Web検索結果を最優先し、確認できない情報は推測しない。類似語・同義語・別語の情報を混同しない。「word」は入力値「{word}」をそのまま使う。
-「meaning」は日本語で代表的な意味を最大3つ記載し、複数は「;」で区切る。確認できない場合は「""」とする。「part_of_speech」は英語で記載し、確認できない場合は「""」とする。「etymology」はロシア語としての語源・由来を100文字以内で記載し、確認できない場合は「""」とする。
-「collocations」は確認できたものを最大3つ、「ロシア語（日本語訳）」の形式で記載する。3つ未満なら確認できたものだけとし、存在しないものは補完しない。確認できない場合は「[]」とする。
-「examples」は必ず2つ作成する。「{word}」または自然な文法変化形を含む自然なロシア語とし、可能なら異なる用法を使う。「example_translated」は自然で正確な日本語訳とする。
-JSONのみを出力し、JSON以外の文章やMarkdownコードブロックは出力しない。
+Web検索結果を最優先し、確認できない情報は推測しない。対象単語と直接関係する情報だけを使用し、類似語・同義語・別語の情報を混同しない。「word」は入力値「{word}」をそのまま使用する。「meaning」は日本語で代表的な意味を最大3つ記載し、複数は「;」で区切る。「part_of_speech」は英語の品詞名で記載する。「etymology」はロシア語としての語源・由来をロシア語で記載し、確認できない場合は空文字列とする。「collocations」は確認できた自然なロシア語のコロケーションを最大3つ、「ロシア語（日本語訳）」の形式で記載し、確認できない場合は空配列とする。「examples」は自然で実際に使われるロシア語の例文を必ず2つ作成し、可能なら異なる用法を使用する。「example_translated」は対応する自然で正確な日本語訳とする。すべてのフィールドは指定されたJSON Schemaの型を厳密に守る。JSON以外の文章を出力しない。
 
-
-# 出力例
-# 出力例(домの場合)
-
-{{
-  "word": "дом",
-  "meaning": "家; 家庭",
-  "part_of_speech": "noun",
-  "etymology": "古ロシア語に由来し、住居や家庭を表す語として発達した。",
-  "collocations": [
-    "строить дом（家を建てる）",
-    "вернуться домой（家に帰る）",
-    "жить с семьёй（家族と暮らす）"
-  ],
-  "examples": [
-    {{
-      "example": "Я возвращаюсь домой после работы.",
-      "example_translated": "私は仕事の後に家に帰ります。"
-    }},
-    {{
-      "example": "Этот дом очень старый.",
-      "example_translated": "この家はとても古いです。"
-    }}
-  ]
-}}
 """
 
 def call_vocab(prompt, api_key):
     client = Groq(api_key=api_key)
-    response = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}], temperature=0, max_tokens=1500)
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=2000,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "russian_vocab",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "word": {"type": "string"},
+                        "meaning": {"type": "string"},
+                        "part_of_speech": {"type": "string"},
+                        "etymology": {"type": "string"},
+                        "collocations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "maxItems": 3
+                        },
+                        "examples": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "example": {"type": "string"},
+                                    "example_translated": {"type": "string"}
+                                },
+                                "required": [
+                                    "example",
+                                    "example_translated"
+                                ],
+                                "additionalProperties": False
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    },
+                    "required": [
+                        "word",
+                        "meaning",
+                        "part_of_speech",
+                        "etymology",
+                        "collocations",
+                        "examples"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        }
+    )
     return json.loads(response.choices[0].message.content)
 
 def search(query, results, max_chars, timeout=10, unicode_start=None, unicode_end=None):
