@@ -12,10 +12,6 @@ API_KEYS = [
     "gsk_zzz",
 ]
 
-import json
-from groq import Groq
-
-
 SYSTEM_PROMPT = """
 あなたは、ロシア語話者向けの日本語学習用辞書データを作成する専門家です。
 
