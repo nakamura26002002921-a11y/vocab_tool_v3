@@ -12,109 +12,158 @@ API_KEYS = [
     "gsk_zzz",
 ]
 
+import json
+from groq import Groq
 
-PROMPT = """
 
-# 目的
+SYSTEM_PROMPT = """
+あなたは、ロシア語話者向けの日本語学習用辞書データを作成する専門家です。
 
-ロシア語話者向けに、日本語の単語を学習するための辞書データを作成してください。
+【基本方針】
+- Web検索結果を最優先する。
+- 確認できない情報は推測しない。
+- 対象単語そのものについてのみ回答する。
+- 類似語・同義語・関連語・同じ漢字を使う別語の情報を混同しない。
 
-# 対象単語
+【word】
+- 入力値をそのまま使用する。
+- 表記や読みを変更しない。
+- 読みを付けない。
 
-{word}
+【reading】
+- word自体の自然な読みをひらがなだけで記載する。
 
-# Web検索結果
+【meaning】
+- 対象単語の現代日本語として一般的な意味をロシア語で記載する。
+- 最大3つ。
+- 同じ意味の言い換えを重複させない。
 
-{results}
+【part_of_speech】
+- 対象単語そのものの品詞を英語で記載する。
 
-# 制約条件
+【etymology】
+- 対象単語の日本語としての語源・由来または漢字の成り立ちをロシア語で記載する。
+- 語源と漢字の字源を混同しない。
+- 確認できない場合は推測せず空文字にする。
 
-Web検索結果を最優先し、確認できない情報は推測しない。対象単語と直接関係する情報のみを使用し、類似語・同義語・関連語・同じ漢字を使う別語の情報を混同しない。「word」は入力値「{word}」をそのまま使用し、表記や読みを変更しない。「reading」は「word」自体の自然な読みをひらがなだけで記載する。「meaning」は対象単語の現代日本語として一般的な意味をロシア語で最大3つ記載し、同じ意味の言い換えを重複させない。「part_of_speech」は対象単語そのものの品詞を英語で記載する。「etymology」は対象単語の日本語としての語源・由来または漢字の成り立ちをロシア語で記載し、語源と漢字の字源を混同せず、確認できた情報だけを使用する。確証がない場合は推測しない。「collocations」は対象単語と実際に自然な組み合わせとして使用される日本語表現を確認できたものから最大3つ記載し、「日本語（ロシア語訳）」の形式とする。「examples」は対象単語そのものの一般的かつ自然な用法を使用した日本語例文を必ず2つ作成し、「example_translated」には対応する自然で正確なロシア語訳を記載する。「collocations」と「examples」の日本語部分では、漢字を含む語・表現に必ず自然なひらがなの読みを「漢字を含む語・表現（ひらがなの読み）」の形式で付ける。漢字1文字ごとではなく自然な語・表現単位で読みを付け、読みの付け忘れを絶対に残さない。日本語部分のすべての漢字に読みが付いていることを確認してから出力する。「word」には読みを付けず、「reading」には読みだけを記載し、ロシア語には日本語のふりがなを付けない。確認できない情報は「""」または「[]」とし、推測で補完しない。
+【collocations】
+- 対象単語と自然に組み合わせて使用される日本語表現を最大3つ記載する。
+- 「日本語（ロシア語訳）」の形式にする。
+- 漢字を含む日本語には自然な語・表現単位でひらがなの読みを付ける。
 
+【examples】
+- 対象単語そのものを使用した自然な日本語例文を2つ作成する。
+- exampleには日本語を記載する。
+- example_translatedには自然で正確なロシア語訳を記載する。
+- 日本語部分に含まれる漢字には必ず自然な単位でひらがなの読みを付ける。
+- ロシア語には日本語のふりがなを付けない。
+
+【不確かな情報】
+- 確認できない情報は推測で補完しない。
+- 文字列は空文字、配列は空配列にする。
 """
 
 
-def call_vocab(prompt, api_key):
+VOCAB_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "word": {"type": "string"},
+        "reading": {"type": "string"},
+        "meaning": {"type": "string"},
+        "part_of_speech": {"type": "string"},
+        "etymology": {"type": "string"},
+        "collocations": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 3
+        },
+        "examples": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "example": {"type": "string"},
+                    "example_translated": {"type": "string"}
+                },
+                "required": [
+                    "example",
+                    "example_translated"
+                ],
+                "additionalProperties": False
+            },
+            "minItems": 2,
+            "maxItems": 2
+        }
+    },
+    "required": [
+        "word",
+        "reading",
+        "meaning",
+        "part_of_speech",
+        "etymology",
+        "collocations",
+        "examples"
+    ],
+    "additionalProperties": False
+}
+
+
+def call_vocab(word, results, api_key):
     client = Groq(api_key=api_key)
 
     response = client.chat.completions.create(
         model="openai/gpt-oss-120b",
+
         messages=[
             {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
                 "role": "user",
-                "content": prompt
+                "content": (
+                    f"対象単語:\n{word}\n\n"
+                    f"Web検索結果:\n{results}"
+                )
             }
         ],
+
         temperature=0,
         max_tokens=2000,
+
         response_format={
             "type": "json_schema",
             "json_schema": {
                 "name": "japanese_vocab",
                 "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "word": {
-                            "type": "string"
-                        },
-                        "reading": {
-                            "type": "string"
-                        },
-                        "meaning": {
-                            "type": "string"
-                        },
-                        "part_of_speech": {
-                            "type": "string"
-                        },
-                        "etymology": {
-                            "type": "string"
-                        },
-                        "collocations": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "maxItems": 3
-                        },
-                        "examples": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "example": {
-                                        "type": "string"
-                                    },
-                                    "example_translated": {
-                                        "type": "string"
-                                    }
-                                },
-                                "required": [
-                                    "example",
-                                    "example_translated"
-                                ],
-                                "additionalProperties": False
-                            },
-                            "minItems": 2,
-                            "maxItems": 2
-                        }
-                    },
-                    "required": [
-                        "word",
-                        "reading",
-                        "meaning",
-                        "part_of_speech",
-                        "etymology",
-                        "collocations",
-                        "examples"
-                    ],
-                    "additionalProperties": False
-                }
+                "schema": VOCAB_SCHEMA
             }
         }
     )
 
+    # キャッシュ状況を確認
+    usage = response.usage
+
+    prompt_tokens = usage.prompt_tokens
+    cached_tokens = 0
+
+    if usage.prompt_tokens_details:
+        cached_tokens = usage.prompt_tokens_details.cached_tokens
+
+    if prompt_tokens > 0:
+        cache_rate = cached_tokens / prompt_tokens * 100
+    else:
+        cache_rate = 0
+
+    print(
+        f"[Groq] "
+        f"prompt={prompt_tokens}, "
+        f"cached={cached_tokens}, "
+        f"cache_rate={cache_rate:.1f}%"
+    )
+
     return json.loads(response.choices[0].message.content)
+
 
 def search(query, results, max_chars):
     return subprocess.run(["python3", "search.py", "--word", query, "--max-results", str(results), "--max-chars", str(max_chars)], capture_output=True, text=True, check=True).stdout
