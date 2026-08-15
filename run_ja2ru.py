@@ -13,54 +13,15 @@ API_KEYS = [
 ]
 
 SYSTEM_PROMPT = """
-あなたは、ロシア語話者向けの日本語学習用辞書データを作成する専門家です。
-
-【基本方針】
-- Web検索結果を最優先する。
-- 確認できない情報は推測しない。
-- 対象単語そのものについてのみ回答する。
-- 類似語・同義語・関連語・同じ漢字を使う別語の情報を混同しない。
-
-【word】
-- 入力値をそのまま使用する。
-- 表記や読みを変更しない。
-- 読みを付けない。
-
-【reading】
-- word自体の自然な読みをひらがなだけで記載する。
-
-【meaning】
-- 対象単語の現代日本語として一般的な意味をロシア語で記載する。
-- 最大3つ。
-- 同じ意味の言い換えを重複させない。
-
-【part_of_speech】
-- 対象単語そのものの品詞を英語で記載する。
-
-【etymology】
-- 対象単語の日本語としての語源・由来または漢字の成り立ちをロシア語で記載する。
-- 語源と漢字の字源を混同しない。
-- 確認できない場合は推測せず空文字にする。
-
-【collocations】
-- 対象単語と自然に組み合わせて使用される日本語表現を最大3つ記載する。
-- 「日本語（ロシア語訳）」の形式にする。
-- 漢字を含む日本語には自然な語・表現単位でひらがなの読みを付ける。
-
-【examples】
-- 対象単語そのものを使用した自然な日本語例文を2つ作成する。
-- exampleには日本語を記載する。
-- example_translatedには自然で正確なロシア語訳を記載する。
-- 日本語部分に含まれる漢字には必ず自然な単位でひらがなの読みを付ける。
-- ロシア語には日本語のふりがなを付けない。
-
-【不確かな情報】
-- 確認できない情報は推測で補完しない。
-- 文字列は空文字、配列は空配列にする。
+Web検索結果を最優先し、確認できない情報は推測しない。対象単語そのものの情報だけを使用し、類似語・同義語・別語と混同しない。
+「word」は入力値をそのまま使用。「reading」は自然なひらがな読み。「meaning」は現代日本語の一般的な意味をロシア語で最大3つ。
+「part_of_speech」は英語の品詞名。「etymology」は日本語としての語源・由来または漢字の成り立ちをロシア語で記載し、不明なら空文字列。
+「collocations」は自然な日本語表現を最大3つ、「日本語（ロシア語訳）」で記載し、漢字にはひらがなの読みを付ける。
+「examples」は対象単語を使った自然な日本語例文を2つ。「example」は日本語、「example_translated」はロシア語訳。日本語の漢字にはひらがなの読みを付ける。
+不明な文字列は空文字列、配列は空配列とする。JSON以外は出力しない。
 """
 
-
-VOCAB_SCHEMA = {
+SCHEMA = {
     "type": "object",
     "properties": {
         "word": {"type": "string"},
@@ -68,11 +29,7 @@ VOCAB_SCHEMA = {
         "meaning": {"type": "string"},
         "part_of_speech": {"type": "string"},
         "etymology": {"type": "string"},
-        "collocations": {
-            "type": "array",
-            "items": {"type": "string"},
-            "maxItems": 3
-        },
+        "collocations": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
         "examples": {
             "type": "array",
             "items": {
@@ -81,83 +38,27 @@ VOCAB_SCHEMA = {
                     "example": {"type": "string"},
                     "example_translated": {"type": "string"}
                 },
-                "required": [
-                    "example",
-                    "example_translated"
-                ],
+                "required": ["example", "example_translated"],
                 "additionalProperties": False
             },
-            "minItems": 2,
-            "maxItems": 2
+            "minItems": 2, "maxItems": 2
         }
     },
-    "required": [
-        "word",
-        "reading",
-        "meaning",
-        "part_of_speech",
-        "etymology",
-        "collocations",
-        "examples"
-    ],
+    "required": ["word", "reading", "meaning", "part_of_speech", "etymology", "collocations", "examples"],
     "additionalProperties": False
 }
 
-
 def call_vocab(word, results, api_key):
     client = Groq(api_key=api_key)
-
     response = client.chat.completions.create(
         model="openai/gpt-oss-120b",
-
         messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"対象単語:\n{word}\n\n"
-                    f"Web検索結果:\n{results}"
-                )
-            }
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"対象単語:\n{word}\n\nWeb検索結果:\n{results}"}
         ],
-
-        temperature=0,
-        max_tokens=2000,
-
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "japanese_vocab",
-                "strict": True,
-                "schema": VOCAB_SCHEMA
-            }
-        }
+        temperature=0, max_tokens=2000,
+        response_format={"type": "json_schema", "json_schema": {"name": "japanese_vocab", "strict": True, "schema": SCHEMA}}
     )
-
-    # キャッシュ状況を確認
-    usage = response.usage
-
-    prompt_tokens = usage.prompt_tokens
-    cached_tokens = 0
-
-    if usage.prompt_tokens_details:
-        cached_tokens = usage.prompt_tokens_details.cached_tokens
-
-    if prompt_tokens > 0:
-        cache_rate = cached_tokens / prompt_tokens * 100
-    else:
-        cache_rate = 0
-
-    print(
-        f"[Groq] "
-        f"prompt={prompt_tokens}, "
-        f"cached={cached_tokens}, "
-        f"cache_rate={cache_rate:.1f}%"
-    )
-
     return json.loads(response.choices[0].message.content)
 
 
