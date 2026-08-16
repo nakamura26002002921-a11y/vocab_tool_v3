@@ -68,9 +68,24 @@ def call_vocab(word, results, api_key):
         ],
         temperature=0,
         max_tokens=2000,
-        response_format={"type": "json_schema", "json_schema": {"name": "russian_vocab", "strict": True, "schema": SCHEMA}}
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "russian_vocab",
+                "strict": True,
+                "schema": SCHEMA
+            }
+        }
+    )
+    usage = response.usage
+    print(
+        f"  tokens: "
+        f"prompt={usage.prompt_tokens}, "
+        f"completion={usage.completion_tokens}, "
+        f"total={usage.total_tokens}"
     )
     return json.loads(response.choices[0].message.content)
+
 
 
 def search(query, results, max_chars, timeout=10, unicode_start=None, unicode_end=None):
