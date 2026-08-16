@@ -94,16 +94,14 @@ def main():
     for i, word in enumerate(words[args.startidx - 1:args.endidx], args.startidx):
         print(f"[{i}] {word}")
         api_key = API_KEYS[(i - 1) % len(API_KEYS)]
-
         try:
             results = "\n\n".join([
                 search(f"{word} значение", 3, 1500, 10, 0x0400, 0x04FF),
                 search(f"{word} происхождение этимология", 3, 1500, 10, 0x0400, 0x04FF)
             ])
-            data = call_vocab(PROMPT.format(word=word, results=results), api_key)
+            data = call_vocab(word, results, api_key)
             collocations = data.get("collocations", [])[:3]
             examples = data.get("examples", [])
-
             with open(args.output, "a", encoding="utf-8", newline="") as f:
                 csv.writer(f).writerow([
                     data.get("word", word),
@@ -116,7 +114,6 @@ def main():
                     examples[1].get("example", "") if len(examples) > 1 else "",
                     examples[1].get("example_translated", "") if len(examples) > 1 else ""
                 ])
-
             print(f"[{i}] OK")
         except Exception as e:
             print(f"[{i}] ERROR: {e}", file=sys.stderr)
